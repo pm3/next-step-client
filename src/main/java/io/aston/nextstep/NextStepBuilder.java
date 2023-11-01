@@ -10,7 +10,8 @@ import java.time.Duration;
 
 public class NextStepBuilder {
     private final String basePath;
-    private int threadCount;
+    private int taskThreadCount;
+    private int workerThreadCount;
     private String workerId;
     private HttpClient httpClient;
     private ObjectMapper objectMapper;
@@ -20,10 +21,15 @@ public class NextStepBuilder {
         this.basePath = basePath;
     }
 
-    public NextStepBuilder setThreadCount(int threadCount) {
-        this.threadCount = threadCount;
+    public NextStepBuilder setTaskThreadCount(int taskThreadCount) {
+        this.taskThreadCount = taskThreadCount;
         return this;
     }
+    public NextStepBuilder setWorkerThreadCount(int workerThreadCount) {
+        this.workerThreadCount = workerThreadCount;
+        return this;
+    }
+
 
     public NextStepBuilder setWorkerId(String workerId) {
         this.workerId = workerId;
@@ -54,6 +60,6 @@ public class NextStepBuilder {
             objectMapper.registerModule(new JavaTimeModule());
             objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         }
-        return new NextStepClient(threadCount, basePath, workerId, httpClient, objectMapper);
+        return new NextStepClient(taskThreadCount, workerThreadCount, basePath, workerId, httpClient, objectMapper);
     }
 }
