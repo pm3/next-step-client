@@ -12,6 +12,7 @@ public class Workflow {
     private Instant modified;
     private State state;
     private Map<String, Object> params;
+    private Object output;
     private List<Task> tasks;
 
     public String getId() {
@@ -68,6 +69,15 @@ public class Workflow {
 
     public void setParams(Map<String, Object> params) {
         this.params = params;
+    }
+
+    public Object getOutput() {
+        return output;
+    }
+
+    public Workflow setOutput(Object output) {
+        this.output = output;
+        return this;
     }
 
     public List<Task> getTasks() {

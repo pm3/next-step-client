@@ -62,12 +62,6 @@ public class WorkflowThread {
     }
 
     void finish() {
-        System.out.println("#finish " + workflow.getId());
-        try {
-            _callTask("#finish", null);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
         _local.remove();
     }
 }

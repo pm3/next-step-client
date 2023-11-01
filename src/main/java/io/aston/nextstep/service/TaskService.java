@@ -4,7 +4,6 @@ import io.aston.nextstep.NextStepClient;
 import io.aston.nextstep.NextStepTask;
 import io.aston.nextstep.model.State;
 import io.aston.nextstep.model.Task;
-import io.aston.nextstep.model.TaskOutput;
 import io.aston.nextstep.utils.SimpleUriBuilder;
 import io.aston.nextstep.utils.TaskRunner;
 
@@ -34,9 +33,9 @@ public class TaskService extends HttpService {
         return get(b.build(), Task.class);
     }
 
-    public Task putTaskOutput(TaskOutput taskOutput) throws Exception {
-        String path2 = client.getBasePath() + "/v1/runtime/tasks/" + taskOutput.getTaskId();
-        return put(new URI(path2), taskOutput, Task.class);
+    public Task putTaskOutput(Task taskOutput) throws Exception {
+        String path = client.getBasePath() + "/v1/tasks/" + taskOutput.getId();
+        return put(new URI(path), taskOutput, Task.class);
     }
 
     public void run() {
@@ -100,8 +99,10 @@ public class TaskService extends HttpService {
     }
 
     private void execTask0(Task task, TaskRunner runner) throws Exception {
-        TaskOutput taskOutput = new TaskOutput();
-        taskOutput.setTaskId(task.getId());
+        Task taskOutput = new Task();
+        taskOutput.setId(task.getId());
+        taskOutput.setWorkflowId(task.getWorkflowId());
+        taskOutput.setTaskName(task.getTaskName());
         try {
             Object value = runner.exec(task);
             taskOutput.setState(State.COMPLETED);
@@ -114,7 +115,7 @@ public class TaskService extends HttpService {
             );
             taskOutput.setOutput(err);
         }
-        System.out.println("++taskOutput " + taskOutput.getTaskId() + " " + new Date());
+        System.out.println("++taskOutput " + taskOutput.getId() + " " + new Date());
         putTaskOutput(taskOutput);
     }
 

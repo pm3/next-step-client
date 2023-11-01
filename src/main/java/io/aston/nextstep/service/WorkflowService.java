@@ -3,10 +3,7 @@ package io.aston.nextstep.service;
 import com.fasterxml.jackson.databind.node.TreeTraversingParser;
 import io.aston.nextstep.IWorkflow;
 import io.aston.nextstep.NextStepClient;
-import io.aston.nextstep.model.Task;
-import io.aston.nextstep.model.TaskCreate;
-import io.aston.nextstep.model.TaskFinish;
-import io.aston.nextstep.model.Workflow;
+import io.aston.nextstep.model.*;
 import io.aston.nextstep.utils.SimpleUriBuilder;
 
 import java.net.ConnectException;
@@ -33,10 +30,15 @@ public class WorkflowService extends HttpService {
         return get(b.build(), TaskFinish.class);
     }
 
-    public Task fetchRunTask(TaskCreate taskCreate) throws Exception {
+    public Task createTask(TaskCreate taskCreate) throws Exception {
         taskCreate.setWorkerId(client.getWorkerId());
-        String path2 = client.getBasePath() + "/v1/runtime/tasks/";
-        return post(new URI(path2), taskCreate, Task.class);
+        String path = client.getBasePath() + "/v1/tasks/";
+        return post(new URI(path), taskCreate, Task.class);
+    }
+
+    public Workflow finishWorkflow(Workflow workflow) throws Exception {
+        String path = client.getBasePath() + "/v1/workflows/" + workflow.getId();
+        return put(new URI(path), workflow, Workflow.class);
     }
 
     private final AtomicInteger runningWorkflowCount = new AtomicInteger();
@@ -50,12 +52,29 @@ public class WorkflowService extends HttpService {
                 Workflow workflow = fromInitTask(task);
                 WorkflowThread workflowThread = new WorkflowThread(workflow, this);
                 try {
-                    exec.exec(workflow.getParams());
+                    Object output = exec.exec(workflow.getParams());
+                    workflow.setState(State.COMPLETED);
+                    workflow.setOutput(output);
+                } catch (RuntimeException e) {
+                    System.out.println("error running workflow " + task.getWorkflowId() + " " + e.getMessage());
+                    workflow.setState(State.FATAL_ERROR);
+                    workflow.setOutput(Map.of(
+                            "type", e.getClass().getSimpleName(),
+                            "message", e.getMessage()));
                 } catch (Exception e) {
                     System.out.println("error running workflow " + task.getWorkflowId() + " " + e.getMessage());
+                    workflow.setState(State.FAILED);
+                    workflow.setOutput(Map.of(
+                            "type", e.getClass().getSimpleName(),
+                            "message", e.getMessage()));
                 } finally {
                     runningWorkflowCount.decrementAndGet();
                     workflowThread.finish();
+                    try {
+                        finishWorkflow(workflow);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 }
             });
         }
@@ -71,7 +90,7 @@ public class WorkflowService extends HttpService {
         workflow.setState(task.getState());
         if (task.getParams() != null) {
             try {
-                workflow.setParams(client.getObjectMapper().readValue(new TreeTraversingParser(task.getParams()), Map.class));
+                workflow.setParams(client.getObjectMapper().readValue(new TreeTraversingParser(task.getParams()), client.getObjectMapper().getTypeFactory().constructMapType(Map.class, String.class, Object.class)));
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -123,7 +142,7 @@ public class WorkflowService extends HttpService {
 
     void callTask(TaskCreate taskCreate, WorkflowThread workflowThread) throws Exception {
         taskCreate.setWorkerId(client.getWorkerId());
-        Task runningTask = fetchRunTask(taskCreate);
+        Task runningTask = createTask(taskCreate);
         if (runningTask.getId() != null) {
             waitingThreads.put(runningTask.getId(), workflowThread);
         }

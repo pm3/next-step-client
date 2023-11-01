@@ -2,8 +2,6 @@ package io.aston.nextstep.service;
 
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.aston.nextstep.model.Task;
-import io.aston.nextstep.model.TaskOutput;
 
 import java.io.IOException;
 import java.net.URI;
@@ -72,22 +70,4 @@ public class HttpService {
         System.out.println("---out " + response.body());
         return objectMapper.readValue(response.body(), type);
     }
-
-    public Task putTaskOutput(URI uri, TaskOutput taskOutput) throws Exception {
-        System.out.println(uri);
-        String json = objectMapper.writeValueAsString(taskOutput);
-        HttpRequest request = HttpRequest.newBuilder()
-                .PUT(HttpRequest.BodyPublishers.ofString(json))
-                .uri(uri)
-                .header("Content-Type", "application/json")
-                .build();
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() != 200) {
-            System.out.println("error: " + response.statusCode());
-            System.out.println(response.body());
-            return null;
-        }
-        return objectMapper.readValue(response.body(), Task.class);
-    }
-
 }
