@@ -11,6 +11,7 @@ import io.aston.nextstep.utils.TaskRunner;
 import java.lang.reflect.Method;
 import java.net.ConnectException;
 import java.net.URI;
+import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -29,7 +30,7 @@ public class TaskService extends HttpService {
         SimpleUriBuilder b = new SimpleUriBuilder(client.getBasePath() + "/v1/runtime/queues/new-tasks");
         b.param("workerId", client.getWorkerId());
         b.param("timeout", "10");
-        taskRunnerMap.keySet().forEach((k) -> b.param("taskName", k));
+        client.getTaskNames().forEach((k) -> b.param("taskName", k));
         return get(b.build(), Task.class);
     }
 
@@ -55,7 +56,7 @@ public class TaskService extends HttpService {
     }
 
     private void runStep() throws Exception {
-        if (taskRunnerMap.size() == 0) {
+        if (client.getTaskNames().isEmpty()) {
             Thread.sleep(1000);
             return;
         }
@@ -72,6 +73,10 @@ public class TaskService extends HttpService {
         Task task = fetchNextTask();
         if (task == null) {
             System.out.println("empty body task " + runningCount.get());
+            return;
+        }
+        if (task.getId().equals(task.getWorkflowId())) {
+            client.getWorkflowService().startWorkflow(task);
             return;
         }
         TaskRunner runner = taskRunnerMap.get(task.getTaskName());
@@ -109,6 +114,7 @@ public class TaskService extends HttpService {
             );
             taskOutput.setOutput(err);
         }
+        System.out.println("++taskOutput " + taskOutput.getTaskId() + " " + new Date());
         putTaskOutput(taskOutput);
     }
 
@@ -117,8 +123,9 @@ public class TaskService extends HttpService {
             NextStepTask task = method.getAnnotation(NextStepTask.class);
             if (task != null) {
                 if (method.getParameterCount() == 1) {
-                    String name = task.name().length() > 0 ? task.name() : instance.getClass().getSimpleName() + "." + method.getName();
+                    String name = !task.name().isEmpty() ? task.name() : instance.getClass().getSimpleName() + "." + method.getName();
                     taskRunnerMap.put(name, new TaskRunner(method, instance, client.getObjectMapper()));
+                    client.getTaskNames().add(name);
                 } else {
                     System.out.println("error NextStepTask method params " + method);
                 }

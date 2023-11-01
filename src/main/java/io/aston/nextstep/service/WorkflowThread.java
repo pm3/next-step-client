@@ -5,6 +5,7 @@ import io.aston.nextstep.model.TaskCreate;
 import io.aston.nextstep.model.TaskFinish;
 import io.aston.nextstep.model.Workflow;
 
+import java.util.Date;
 import java.util.Map;
 
 public class WorkflowThread {
@@ -24,7 +25,10 @@ public class WorkflowThread {
     public static Map<String, Object> callTask(String name, Object params) throws Exception {
         WorkflowThread wt = _local.get();
         if (wt == null) throw new RuntimeException("call only inside workflow");
-        return wt._callTask(name, params);
+        System.out.println("++callTask " + name + " " + new Date());
+        Map<String, Object> out = wt._callTask(name, params);
+        System.out.println("++callTaskOut " + name + " " + new Date());
+        return out;
     }
 
     private Map<String, Object> _callTask(String name, Object params) throws Exception {
@@ -40,7 +44,7 @@ public class WorkflowThread {
         workflowService.callTask(taskCreate, this);
         while (!Thread.interrupted()) {
             try {
-                Thread.sleep(1000);
+                Thread.sleep(25);
                 if (taskFinish != null) break;
             } catch (Throwable ignore) {
             }
@@ -58,6 +62,12 @@ public class WorkflowThread {
     }
 
     void finish() {
+        System.out.println("#finish " + workflow.getId());
+        try {
+            _callTask("#finish", null);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         _local.remove();
     }
 }

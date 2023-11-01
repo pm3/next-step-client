@@ -1,5 +1,6 @@
 package io.aston.nextstep.service;
 
+import com.fasterxml.jackson.databind.node.TreeTraversingParser;
 import io.aston.nextstep.IWorkflow;
 import io.aston.nextstep.NextStepClient;
 import io.aston.nextstep.model.Task;
@@ -10,6 +11,7 @@ import io.aston.nextstep.utils.SimpleUriBuilder;
 
 import java.net.ConnectException;
 import java.net.URI;
+import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -22,14 +24,6 @@ public class WorkflowService extends HttpService {
     public WorkflowService(NextStepClient client) {
         super(client.getHttpClient(), client.getObjectMapper());
         this.client = client;
-    }
-
-    public Workflow fetchNextWorkflow() throws Exception {
-        SimpleUriBuilder b = new SimpleUriBuilder(client.getBasePath() + "/v1/runtime/queues/free-workflows");
-        b.param("workerId", client.getWorkerId());
-        b.param("timeout", "10");
-        workflowRunnerMap.keySet().forEach((k) -> b.param("workflowName", k));
-        return get(b.build(), Workflow.class);
     }
 
     public TaskFinish fetchNextTaskFinish() throws Exception {
@@ -45,57 +39,44 @@ public class WorkflowService extends HttpService {
         return post(new URI(path2), taskCreate, Task.class);
     }
 
-    public void runWorkflow() {
-        while (!Thread.interrupted()) {
-            try {
-                runWorkflowStep();
-            } catch (ConnectException e) {
-                System.out.println("offline mode");
-                try {
-                    Thread.sleep(5000);
-                } catch (Exception ignore) {
-                }
-            } catch (Throwable th) {
-                th.printStackTrace();
-            }
-        }
-    }
-
-    private void runWorkflowStep() throws Exception {
-        if (workflowRunnerMap.size() == 0) {
-            Thread.sleep(1000);
-            return;
-        }
-        int max = 20000;
-        while (runningWorkflowCount.get() > client.getWorkerThreadCount() && max-- > 0) {
-            Thread.sleep(50);
-        }
-        checkWorkflow();
-    }
-
     private final AtomicInteger runningWorkflowCount = new AtomicInteger();
 
-    private void checkWorkflow() throws Exception {
-        Workflow workflow = fetchNextWorkflow();
-        if (workflow == null) {
-            System.out.println("empty body workflow " + runningWorkflowCount.get());
-            return;
-        }
-        IWorkflow exec = workflowRunnerMap.get(workflow.getWorkflowName());
+    public void startWorkflow(Task task) {
+
+        IWorkflow exec = workflowRunnerMap.get(task.getWorkflowName());
         if (exec != null) {
             client.getWorkerExecutor().execute(() -> {
                 runningWorkflowCount.incrementAndGet();
+                Workflow workflow = fromInitTask(task);
                 WorkflowThread workflowThread = new WorkflowThread(workflow, this);
                 try {
                     exec.exec(workflow.getParams());
                 } catch (Exception e) {
-                    System.out.println("error running workflow " + workflow.getId() + " " + e.getMessage());
+                    System.out.println("error running workflow " + task.getWorkflowId() + " " + e.getMessage());
                 } finally {
                     runningWorkflowCount.decrementAndGet();
                     workflowThread.finish();
                 }
             });
         }
+    }
+
+    private Workflow fromInitTask(Task task) {
+        Workflow workflow = new Workflow();
+        workflow.setId(task.getWorkflowId());
+        workflow.setUniqueCode(task.getTaskName());
+        workflow.setWorkflowName(task.getWorkflowName());
+        workflow.setCreated(task.getCreated());
+        workflow.setModified(task.getModified());
+        workflow.setState(task.getState());
+        if (task.getParams() != null) {
+            try {
+                workflow.setParams(client.getObjectMapper().readValue(new TreeTraversingParser(task.getParams()), Map.class));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        return workflow;
     }
 
     //////
@@ -116,15 +97,16 @@ public class WorkflowService extends HttpService {
     }
 
     private void runTaskFinishStep() throws Exception {
-        if (workflowRunnerMap.size() == 0) {
+        if (workflowRunnerMap.isEmpty()) {
             Thread.sleep(1000);
             return;
         }
         TaskFinish taskFinish = fetchNextTaskFinish();
         if (taskFinish == null) {
-            System.out.println("empty body taskFinish");
+            System.out.println("empty body taskFinish " + new Date());
             return;
         }
+        System.out.println("++callTaskFinish " + taskFinish.getTaskId() + " " + new Date());
         WorkflowThread tr = waitingThreads.get(taskFinish.getTaskId());
         if (tr != null) {
             tr.setTaskOutput(taskFinish);
@@ -136,11 +118,14 @@ public class WorkflowService extends HttpService {
     public void addWorkflow(IWorkflow workflow, String name) {
         if (name == null) name = workflow.getClass().getSimpleName();
         workflowRunnerMap.put(name, workflow);
+        client.getTaskNames().add("wf:" + name);
     }
 
     void callTask(TaskCreate taskCreate, WorkflowThread workflowThread) throws Exception {
         taskCreate.setWorkerId(client.getWorkerId());
         Task runningTask = fetchRunTask(taskCreate);
-        waitingThreads.put(runningTask.getId(), workflowThread);
+        if (runningTask.getId() != null) {
+            waitingThreads.put(runningTask.getId(), workflowThread);
+        }
     }
 }

@@ -10,6 +10,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Date;
 import java.util.List;
 
 public class HttpService {
@@ -22,19 +23,19 @@ public class HttpService {
     }
 
     public <T> T get(URI uri, Class<T> type) throws Exception {
-        System.out.println(uri);
+        System.out.println(uri + " " + new Date());
         HttpRequest request = HttpRequest.newBuilder().GET().uri(uri).build();
         return callJsonResponse(request, objectMapper.constructType(type));
     }
 
     public <T> List<T> getList(URI uri, Class<T> type) throws Exception {
-        System.out.println(uri);
+        System.out.println(uri + " " + new Date());
         HttpRequest request = HttpRequest.newBuilder().GET().uri(uri).build();
         return callJsonResponse(request, objectMapper.getTypeFactory().constructCollectionType(List.class, type));
     }
 
     public <T> T post(URI uri, Object body, Class<T> type) throws Exception {
-        System.out.println(uri);
+        System.out.println(uri + " " + new Date());
         String json = objectMapper.writeValueAsString(body);
         System.out.println("body " + json);
         HttpRequest request = HttpRequest.newBuilder()
@@ -46,7 +47,7 @@ public class HttpService {
     }
 
     public <T> T put(URI uri, Object body, Class<T> type) throws Exception {
-        System.out.println(uri);
+        System.out.println(uri + " " + new Date());
         String json = objectMapper.writeValueAsString(body);
         System.out.println("body " + json);
         HttpRequest request = HttpRequest.newBuilder()
@@ -67,8 +68,8 @@ public class HttpService {
             System.out.println(response.body());
             throw new HttpException(response.statusCode(), response.body());
         }
-        System.out.println("---" + request);
-        System.out.println("---" + response.body());
+        System.out.println("---out " + request.uri() + " " + new Date());
+        System.out.println("---out " + response.body());
         return objectMapper.readValue(response.body(), type);
     }
 

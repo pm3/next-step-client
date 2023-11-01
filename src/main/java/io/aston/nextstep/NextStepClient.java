@@ -5,6 +5,8 @@ import io.aston.nextstep.service.TaskService;
 import io.aston.nextstep.service.WorkflowService;
 
 import java.net.http.HttpClient;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -21,6 +23,7 @@ public class NextStepClient {
     private final ObjectMapper objectMapper;
     private final TaskService taskService;
     private final WorkflowService workflowService;
+    private final List<String> taskNames = new ArrayList<>();
 
     public static NextStepBuilder newBuilder(String basePath) {
         return new NextStepBuilder(basePath);
@@ -43,7 +46,6 @@ public class NextStepClient {
         this.taskExecutor.execute(taskService::run);
         this.workerExecutor = new ThreadPerTaskExecutor();
         this.workflowService = new WorkflowService(this);
-        this.workerExecutor.execute(workflowService::runWorkflow);
         this.workerExecutor.execute(workflowService::runTaskFinish);
     }
 
@@ -84,6 +86,18 @@ public class NextStepClient {
 
     public Executor getWorkerExecutor() {
         return workerExecutor;
+    }
+
+    public List<String> getTaskNames() {
+        return taskNames;
+    }
+
+    public TaskService getTaskService() {
+        return taskService;
+    }
+
+    public WorkflowService getWorkflowService() {
+        return workflowService;
     }
 
     public void addTaskClass(Object instance) {
