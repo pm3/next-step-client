@@ -1,8 +1,9 @@
 package io.aston.nextstep.model;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 public class Workflow {
     private String id;
@@ -11,8 +12,9 @@ public class Workflow {
     private Instant created;
     private Instant modified;
     private State state;
-    private Map<String, Object> params;
-    private Object output;
+    private JsonNode params;
+    private JsonNode output;
+    private String workerId;
     private List<Task> tasks;
 
     public String getId() {
@@ -63,21 +65,28 @@ public class Workflow {
         this.state = state;
     }
 
-    public Map<String, Object> getParams() {
+    public JsonNode getParams() {
         return params;
     }
 
-    public void setParams(Map<String, Object> params) {
+    public void setParams(JsonNode params) {
         this.params = params;
     }
 
-    public Object getOutput() {
+    public JsonNode getOutput() {
         return output;
     }
 
-    public Workflow setOutput(Object output) {
+    public void setOutput(JsonNode output) {
         this.output = output;
-        return this;
+    }
+
+    public String getWorkerId() {
+        return workerId;
+    }
+
+    public void setWorkerId(String workerId) {
+        this.workerId = workerId;
     }
 
     public List<Task> getTasks() {
@@ -86,5 +95,11 @@ public class Workflow {
 
     public void setTasks(List<Task> tasks) {
         this.tasks = tasks;
+    }
+
+    public String toString() {
+        return "Workflow{" +
+                "id='" + id + '\'' +
+                '}';
     }
 }

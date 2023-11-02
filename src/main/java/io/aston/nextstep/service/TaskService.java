@@ -102,18 +102,19 @@ public class TaskService extends HttpService {
         Task taskOutput = new Task();
         taskOutput.setId(task.getId());
         taskOutput.setWorkflowId(task.getWorkflowId());
+        taskOutput.setWorkerId(client.getWorkerId());
         taskOutput.setTaskName(task.getTaskName());
         try {
             Object value = runner.exec(task);
             taskOutput.setState(State.COMPLETED);
-            taskOutput.setOutput(value);
+            taskOutput.setOutput(client.getObjectMapper().valueToTree(value));
         } catch (Exception e) {
             taskOutput.setState(State.FAILED);
             Map<String, String> err = Map.of(
                     "type", e.getClass().getSimpleName(),
-                    "message", e.getMessage()
+                    "message", e.getMessage() != null ? e.getMessage() : "null"
             );
-            taskOutput.setOutput(err);
+            taskOutput.setOutput(client.getObjectMapper().valueToTree(err));
         }
         System.out.println("++taskOutput " + taskOutput.getId() + " " + new Date());
         putTaskOutput(taskOutput);
@@ -123,7 +124,7 @@ public class TaskService extends HttpService {
         for (Method method : instance.getClass().getMethods()) {
             NextStepTask task = method.getAnnotation(NextStepTask.class);
             if (task != null) {
-                if (method.getParameterCount() == 1) {
+                if (method.getParameterCount() <= 1) {
                     String name = !task.name().isEmpty() ? task.name() : instance.getClass().getSimpleName() + "." + method.getName();
                     taskRunnerMap.put(name, new TaskRunner(method, instance, client.getObjectMapper()));
                     client.getTaskNames().add(name);

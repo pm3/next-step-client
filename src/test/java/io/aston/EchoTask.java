@@ -44,6 +44,7 @@ public class EchoTask {
         }
         return data;
     }
+
     @NextStepTask(name = "echo3")
     public EchoData echo3(EchoData data) {
         if (data != null) {
@@ -52,5 +53,10 @@ public class EchoTask {
             data.setB(data.getB() + 1);
         }
         return data;
+    }
+
+    @NextStepTask(name = "echoFail")
+    public void echoFail() throws Exception {
+        throw new Exception("error echoFail");
     }
 }

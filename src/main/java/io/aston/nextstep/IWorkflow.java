@@ -1,7 +1,5 @@
 package io.aston.nextstep;
 
-import java.util.Map;
-
-public interface IWorkflow {
-    Object exec(Map<String, Object> data) throws Exception;
+public interface IWorkflow<T, R> {
+    R exec(T data) throws Exception;
 }

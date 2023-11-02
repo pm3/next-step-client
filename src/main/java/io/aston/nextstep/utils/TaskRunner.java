@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.TreeTraversingParser;
 import io.aston.nextstep.model.Task;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 public class TaskRunner {
@@ -18,14 +19,23 @@ public class TaskRunner {
         this.method = method;
         this.instance = instance;
         this.objectMapper = objectMapper;
-        this.argType = objectMapper.constructType(method.getGenericParameterTypes()[0]);
+        this.argType = method.getParameterCount() == 1
+                ? objectMapper.constructType(method.getGenericParameterTypes()[0])
+                : null;
     }
 
     public Object exec(Task task) throws Exception {
-        Object arg0 = null;
-        if (task.getParams() != null) {
-            arg0 = objectMapper.readValue(new TreeTraversingParser(task.getParams()), argType);
+        try {
+            if (argType != null && task.getParams() != null) {
+                Object arg0 = objectMapper.readValue(new TreeTraversingParser(task.getParams()), argType);
+                return method.invoke(instance, arg0);
+            } else {
+                return method.invoke(instance);
+            }
+        } catch (InvocationTargetException e) {
+            if (e.getTargetException() instanceof Exception ee)
+                throw ee;
+            throw e;
         }
-        return method.invoke(instance, arg0);
     }
 }
