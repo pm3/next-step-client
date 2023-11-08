@@ -25,6 +25,7 @@ public class NextStepBuilder {
         this.taskThreadCount = taskThreadCount;
         return this;
     }
+
     public NextStepBuilder setWorkerThreadCount(int workerThreadCount) {
         this.workerThreadCount = workerThreadCount;
         return this;
@@ -48,6 +49,7 @@ public class NextStepBuilder {
 
     public NextStepClient build() throws Exception {
         if (workerId == null) throw new Exception("workerId required");
+        workerId = workerId + "-" + ProcessHandle.current().pid();
         if (httpClient == null) {
             httpClient = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(5))

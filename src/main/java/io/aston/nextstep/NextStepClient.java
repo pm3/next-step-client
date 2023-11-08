@@ -1,9 +1,12 @@
 package io.aston.nextstep;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.aston.nextstep.model.Workflow;
+import io.aston.nextstep.model.WorkflowCreate;
 import io.aston.nextstep.service.TaskService;
 import io.aston.nextstep.service.WorkflowService;
 
+import java.lang.reflect.Proxy;
 import java.net.http.HttpClient;
 import java.util.ArrayList;
 import java.util.List;
@@ -100,15 +103,28 @@ public class NextStepClient {
         return workflowService;
     }
 
-    public void addTaskClass(Object instance) {
+    public void addLocalTask(Object instance) {
         taskService.addTaskClass(instance);
     }
 
-    public void addWorkflow(IWorkflow workflow) {
+    @SuppressWarnings("unchecked")
+    public <T> T workflowTask(Class<T> type) {
+        return (T) Proxy.newProxyInstance(Thread.currentThread().getContextClassLoader(), new Class<?>[]{type}, new TaskHandler(this));
+    }
+
+    public void addWorkflow(IWorkflow<?, ?> workflow) {
         workflowService.addWorkflow(workflow, null);
     }
 
-    public void addWorkflow(IWorkflow workflow, String name) {
+    public void addWorkflow(IWorkflow<?, ?> workflow, String name) {
         workflowService.addWorkflow(workflow, name);
+    }
+
+    public Workflow startWorkflow(WorkflowCreate create, int timeout) throws Exception {
+        return workflowService.createWorkflow(create, timeout);
+    }
+
+    public Workflow fetchWorkflow(String workflowId) throws Exception {
+        return workflowService.fetchWorkflow(workflowId);
     }
 }

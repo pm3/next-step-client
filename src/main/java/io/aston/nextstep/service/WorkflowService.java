@@ -1,19 +1,20 @@
 package io.aston.nextstep.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TreeTraversingParser;
 import io.aston.nextstep.IWorkflow;
 import io.aston.nextstep.NextStepClient;
 import io.aston.nextstep.model.State;
 import io.aston.nextstep.model.Task;
 import io.aston.nextstep.model.Workflow;
+import io.aston.nextstep.model.WorkflowCreate;
 import io.aston.nextstep.utils.SimpleUriBuilder;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.net.ConnectException;
 import java.net.URI;
-import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -59,10 +60,15 @@ public class WorkflowService extends HttpService {
                 Workflow workflow = fromInitTask(task);
                 WorkflowThread workflowThread = new WorkflowThread(workflow, this);
                 try {
+                    Object params = null;
                     Type paramsType = paramsType(exec);
-                    Object params = workflow.getParams() != null
-                            ? client.getObjectMapper().treeToValue(workflow.getParams(), client.getObjectMapper().constructType(paramsType))
-                            : null;
+                    if (workflow.getParams() instanceof ObjectNode obj) {
+                        JsonNode paramsNode = obj.get("params");
+                        if (paramsNode != null) {
+                            params = client.getObjectMapper().treeToValue(paramsNode, client.getObjectMapper().constructType(paramsType));
+                        }
+                        workflow.setUniqueCode(obj.get("uniqueCode").asText());
+                    }
                     Object output = exec.exec(params);
                     workflow.setState(State.COMPLETED);
                     workflow.setOutput(toJsonNode(output));
@@ -142,10 +148,10 @@ public class WorkflowService extends HttpService {
         }
         Task taskFinish = fetchNextTaskFinish();
         if (taskFinish == null) {
-            System.out.println("empty body taskFinish " + new Date());
+            //System.out.println("empty body taskFinish " + new Date());
             return;
         }
-        System.out.println("++callTaskFinish " + taskFinish.getId() + " " + new Date());
+        //System.out.println("++callTaskFinish " + taskFinish.getId() + " " + new Date());
         CompletableFuture<Task> tr = waitingTasks.remove(taskFinish.getId());
         if (tr != null) {
             tr.complete(taskFinish);
@@ -154,7 +160,7 @@ public class WorkflowService extends HttpService {
         }
     }
 
-    public void addWorkflow(IWorkflow workflow, String name) {
+    public void addWorkflow(IWorkflow<?, ?> workflow, String name) {
         if (name == null) name = workflow.getClass().getSimpleName();
         workflowRunnerMap.put(name, workflow);
         client.getTaskNames().add("wf:" + name);
@@ -187,7 +193,16 @@ public class WorkflowService extends HttpService {
                 throw new RuntimeException("fatal error");
             }
             throw new RuntimeException("call task error " + t);
-
         });
+    }
+
+    public Workflow createWorkflow(WorkflowCreate create, int timeout) throws Exception {
+        String path = client.getBasePath() + "/v1/workflows/?timeout=" + timeout;
+        return post(new URI(path), create, Workflow.class);
+    }
+
+    public Workflow fetchWorkflow(String workflowId) throws Exception {
+        String path = client.getBasePath() + "/v1/workflows/" + workflowId;
+        return get(new URI(path), Workflow.class);
     }
 }

@@ -12,7 +12,7 @@ public class RunTaskClient1 {
                     .setTaskThreadCount(10)
                     .setWorkerThreadCount(20)
                     .build();
-            client.addTaskClass(new EchoTask());
+            client.addLocalTask(new EchoTaskImpl());
             //client.addWorkflow(new Workflow1());
 
         } catch (Exception e) {

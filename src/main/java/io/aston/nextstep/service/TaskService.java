@@ -10,7 +10,6 @@ import io.aston.nextstep.utils.TaskRunner;
 import java.lang.reflect.Method;
 import java.net.ConnectException;
 import java.net.URI;
-import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -23,6 +22,10 @@ public class TaskService extends HttpService {
     public TaskService(NextStepClient client) {
         super(client.getHttpClient(), client.getObjectMapper());
         this.client = client;
+    }
+
+    public TaskRunner getTaskRunner(String taskName) {
+        return taskRunnerMap.get(taskName);
     }
 
     public Task fetchNextTask() throws Exception {
@@ -71,7 +74,7 @@ public class TaskService extends HttpService {
     private void checkTask() throws Exception {
         Task task = fetchNextTask();
         if (task == null) {
-            System.out.println("empty body task " + runningCount.get());
+            //System.out.println("empty body task " + runningCount.get());
             return;
         }
         if (task.getId().equals(task.getWorkflowId())) {
@@ -87,7 +90,7 @@ public class TaskService extends HttpService {
     }
 
     private void execTask(Task task, TaskRunner runner) {
-        System.out.println("running task " + task.getTaskName() + " concurrency " + runningCount.get());
+        //System.out.println("running task " + task.getTaskName() + " concurrency " + runningCount.get());
         try {
             runningCount.incrementAndGet();
             execTask0(task, runner);
@@ -116,7 +119,7 @@ public class TaskService extends HttpService {
             );
             taskOutput.setOutput(client.getObjectMapper().valueToTree(err));
         }
-        System.out.println("++taskOutput " + taskOutput.getId() + " " + new Date());
+        //System.out.println("++taskOutput " + taskOutput.getId() + " " + new Date());
         putTaskOutput(taskOutput);
     }
 
@@ -129,7 +132,7 @@ public class TaskService extends HttpService {
                     taskRunnerMap.put(name, new TaskRunner(method, instance, client.getObjectMapper()));
                     client.getTaskNames().add(name);
                 } else {
-                    System.out.println("error NextStepTask method params " + method);
+                    System.out.println("error NextStepTask method has more params " + method);
                 }
             }
         }

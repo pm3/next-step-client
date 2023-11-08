@@ -4,21 +4,12 @@ import java.time.Instant;
 import java.util.List;
 
 public class WorkflowTemplate {
-    private Instant created;
     private String name;
     private String description;
-    private boolean latest;
     private String uniqueCodeExpr;
     private List<String> cronExpressions;
-    private List<TaskDef> tasks;
-
-    public Instant getCreated() {
-        return created;
-    }
-
-    public void setCreated(Instant created) {
-        this.created = created;
-    }
+    private Instant created;
+    private Instant modified;
 
     public String getName() {
         return name;
@@ -34,14 +25,6 @@ public class WorkflowTemplate {
 
     public void setDescription(String description) {
         this.description = description;
-    }
-
-    public boolean isLatest() {
-        return latest;
-    }
-
-    public void setLatest(boolean latest) {
-        this.latest = latest;
     }
 
     public String getUniqueCodeExpr() {
@@ -60,11 +43,19 @@ public class WorkflowTemplate {
         this.cronExpressions = cronExpressions;
     }
 
-    public List<TaskDef> getTasks() {
-        return tasks;
+    public Instant getCreated() {
+        return created;
     }
 
-    public void setTasks(List<TaskDef> tasks) {
-        this.tasks = tasks;
+    public void setCreated(Instant created) {
+        this.created = created;
+    }
+
+    public Instant getModified() {
+        return modified;
+    }
+
+    public void setModified(Instant modified) {
+        this.modified = modified;
     }
 }

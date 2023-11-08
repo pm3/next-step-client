@@ -12,8 +12,9 @@ public class RunTaskClient2 {
                     .setTaskThreadCount(10)
                     .setWorkerThreadCount(20)
                     .build();
-            //client.addTaskClass(new EchoTask());
-            client.addWorkflow(new Workflow1());
+            //client.addTaskClass(new EchoTaskImpl());
+            IEchoTask echoTask = client.workflowTask(IEchoTask.class);
+            client.addWorkflow(new Workflow1(echoTask));
 
         } catch (Exception e) {
             e.printStackTrace();

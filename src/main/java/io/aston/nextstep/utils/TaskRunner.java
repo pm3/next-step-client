@@ -24,6 +24,16 @@ public class TaskRunner {
                 : null;
     }
 
+    public Object invoke(Object[] args) throws Exception {
+        try {
+            return this.method.invoke(instance, args);
+        } catch (InvocationTargetException e) {
+            if (e.getTargetException() instanceof Exception ee)
+                throw ee;
+            throw e;
+        }
+    }
+
     public Object exec(Task task) throws Exception {
         try {
             if (argType != null && task.getParams() != null) {
