@@ -9,23 +9,27 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class WorkflowFactory {
 
     private final NextStepClient client;
-
     private final Executor executor;
-
-    private final int threadCount;
+    private final int maxThreads;
+    private final AtomicInteger aktThreads = new AtomicInteger(0);
     private final Map<String, IWorkflow<?, ?>> workflowRunnerMap = new ConcurrentHashMap<>();
     private final Map<String, CompletableFuture<Task>> waitingTasks = new ConcurrentHashMap<>();
 
-    public WorkflowFactory(NextStepClient client, int threadCount) {
+    public WorkflowFactory(NextStepClient client, int maxThreads) {
         this.client = client;
-        this.threadCount = threadCount;
+        this.maxThreads = maxThreads;
         this.executor = new ThreadPerTaskExecutor();
         client.addHandler(EventType.NEW_WORKFLOW, this::handleNewWorkflow);
         client.addHandler(EventType.FINISHED_TASK, this::handleTaskFinish);
+    }
+
+    public boolean hasFreeThreads() {
+        return aktThreads.get() < maxThreads;
     }
 
     public void addWorkflow(IWorkflow<?, ?> workflow) {
@@ -35,15 +39,23 @@ public class WorkflowFactory {
     public void addWorkflow(IWorkflow<?, ?> workflow, String name) {
         if (name == null) name = workflow.getClass().getSimpleName();
         workflowRunnerMap.put(name, workflow);
-        client.addTaskName("wf_" + name);
+        client.addWorkflowName("wf_" + name);
     }
 
+    @SuppressWarnings("unchecked")
     private void handleNewWorkflow(Event event) {
         Workflow workflow = event.workflow();
         IWorkflow<Object, Object> exec = (IWorkflow<Object, Object>) workflowRunnerMap.get(workflow.getWorkflowName());
         if (exec != null) {
             executor.execute(() -> {
-                runWorkflow(workflow, exec);
+                try {
+                    aktThreads.incrementAndGet();
+                    runWorkflow(workflow, exec);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+                    aktThreads.decrementAndGet();
+                }
             });
         }
     }
@@ -103,7 +115,7 @@ public class WorkflowFactory {
         }
     }
 
-    public <T> CompletableFuture<T> callTask(Task taskCreate, Object params, Type responseType) throws Exception {
+    public <T> CompletableFuture<T> callTask(Task taskCreate, Object params, Type responseType) {
         CompletableFuture<Task> future = new CompletableFuture<>();
         taskCreate.setParams(client.toJsonNode(params));
         taskCreate.setWorkerId(client.getWorkerId());

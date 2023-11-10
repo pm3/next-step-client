@@ -11,17 +11,25 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class TaskFactory {
 
     private final NextStepClient client;
+    private final int maxThreads;
     private final Executor executor;
+    private final AtomicInteger aktThreads = new AtomicInteger(0);
     private final Map<String, TaskRunner> taskRunnerMap = new ConcurrentHashMap<>();
 
     public TaskFactory(NextStepClient client, int maxThreads) {
         this.client = client;
+        this.maxThreads = maxThreads;
         this.executor = Executors.newFixedThreadPool(maxThreads);
         this.client.addHandler(EventType.NEW_TASK, this::handleNewTask);
+    }
+
+    public boolean hasFreeThreads() {
+        return aktThreads.get() < maxThreads;
     }
 
     public void addLocalTasks(Object instance) {
@@ -44,10 +52,14 @@ public class TaskFactory {
         if (runner != null) {
             executor.execute(() -> {
                 try {
+                    aktThreads.incrementAndGet();
                     execTask(event.task(), runner);
                 } catch (Exception e) {
                     e.printStackTrace();
+                } finally {
+                    aktThreads.decrementAndGet();
                 }
+
             });
         }
     }

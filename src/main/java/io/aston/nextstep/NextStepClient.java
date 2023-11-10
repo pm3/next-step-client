@@ -26,6 +26,7 @@ public class NextStepClient {
     private final HttpService httpService;
     private final ObjectMapper objectMapper;
     private final List<String> taskNames = new ArrayList<>();
+    private final List<String> workflowNames = new ArrayList<>();
     private Executor eventExecutor;
 
     public static NextStepBuilder newBuilder(String basePath) {
@@ -75,7 +76,6 @@ public class NextStepClient {
     public WorkflowFactory createWorkflowFactory(int maxThreads) {
         if (workflowFactory == null) {
             workflowFactory = new WorkflowFactory(this, maxThreads);
-            addTaskName(workerId);
         }
         return workflowFactory;
     }
@@ -124,12 +124,24 @@ public class NextStepClient {
         SimpleUriBuilder b = new SimpleUriBuilder(basePath + "/v1/runtime/queues/events");
         b.param("workerId", workerId);
         b.param("timeout", "10");
-        taskNames.forEach((k) -> b.param("taskName", k));
+        if (taskFactory != null && taskFactory.hasFreeThreads())
+            taskNames.forEach((k) -> b.param("q", k));
+        if (workflowFactory != null && workflowFactory.hasFreeThreads())
+            workflowNames.forEach((k) -> b.param("q", k));
+        b.param("q", workerId);
         return httpService.get(b.build(), Event.class);
     }
 
     public void addTaskName(String name) {
         if (!taskNames.contains(name)) taskNames.add(name);
+        if (eventExecutor == null) {
+            eventExecutor = Executors.newSingleThreadExecutor();
+            eventExecutor.execute(this::run);
+        }
+    }
+
+    public void addWorkflowName(String name) {
+        if (!workflowNames.contains(name)) workflowNames.add(name);
         if (eventExecutor == null) {
             eventExecutor = Executors.newSingleThreadExecutor();
             eventExecutor.execute(this::run);
@@ -149,11 +161,15 @@ public class NextStepClient {
             } catch (Throwable th) {
                 th.printStackTrace();
             }
+            try {
+                Thread.sleep(2000);
+            } catch (Exception ignore) {
+            }
         }
     }
 
     private void runStep() throws Exception {
-        if (taskNames.isEmpty()) {
+        if (taskNames.isEmpty() && workflowNames.isEmpty()) {
             Thread.sleep(1000);
             return;
         }
