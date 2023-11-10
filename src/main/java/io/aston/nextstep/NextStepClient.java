@@ -1,62 +1,52 @@
 package io.aston.nextstep;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.aston.nextstep.model.Workflow;
-import io.aston.nextstep.model.WorkflowCreate;
-import io.aston.nextstep.service.TaskService;
-import io.aston.nextstep.service.WorkflowService;
+import io.aston.nextstep.model.*;
+import io.aston.nextstep.service.HttpService;
+import io.aston.nextstep.utils.SimpleUriBuilder;
 
 import java.lang.reflect.Proxy;
+import java.lang.reflect.Type;
+import java.net.ConnectException;
+import java.net.URI;
 import java.net.http.HttpClient;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
 public class NextStepClient {
-
-    private final int taskThreadCount;
-    private final Executor taskExecutor;
-    private final int workerThreadCount;
-    private final Executor workerExecutor;
     private final String basePath;
     private final String workerId;
-    private final HttpClient httpClient;
+    private final HttpService httpService;
     private final ObjectMapper objectMapper;
-    private final TaskService taskService;
-    private final WorkflowService workflowService;
     private final List<String> taskNames = new ArrayList<>();
+    private Executor eventExecutor;
 
     public static NextStepBuilder newBuilder(String basePath) {
         return new NextStepBuilder(basePath);
     }
 
-    public NextStepClient(int taskThreadCount,
-                          int workerThreadCount,
-                          String basePath,
+    private final Map<EventType, List<Consumer<Event>>> handlerMap = new ConcurrentHashMap<>();
+
+    public NextStepClient(String basePath,
                           String workerId,
                           HttpClient httpClient,
                           ObjectMapper objectMapper) {
-        this.taskThreadCount = taskThreadCount;
-        this.workerThreadCount = workerThreadCount;
         this.basePath = basePath;
         this.workerId = workerId;
+        this.httpService = new HttpService(httpClient, objectMapper);
         this.objectMapper = objectMapper;
-        this.httpClient = httpClient;
-        this.taskExecutor = Executors.newFixedThreadPool(taskThreadCount + 1);
-        this.taskService = new TaskService(this);
-        this.taskExecutor.execute(taskService::run);
-        this.workerExecutor = new ThreadPerTaskExecutor();
-        this.workflowService = new WorkflowService(this);
-        this.workerExecutor.execute(workflowService::runTaskFinish);
     }
 
-    static final class ThreadPerTaskExecutor implements Executor {
-        public void execute(Runnable r) {
-            Objects.requireNonNull(r);
-            new Thread(r).start();
-        }
+    public void addHandler(EventType eventType, Consumer<Event> handler) {
+        List<Consumer<Event>> l = handlerMap.computeIfAbsent(eventType, (k) -> new ArrayList<>());
+        l.add(handler);
     }
 
     public String getBasePath() {
@@ -67,64 +57,114 @@ public class NextStepClient {
         return workerId;
     }
 
-    public ObjectMapper getObjectMapper() {
-        return objectMapper;
+    public <T> T parseJsonNode(JsonNode node, Type type) throws JsonProcessingException {
+        return objectMapper.treeToValue(node, objectMapper.constructType(type));
     }
 
-    public HttpClient getHttpClient() {
-        return httpClient;
-    }
-
-    public int getTaskThreadCount() {
-        return taskThreadCount;
-    }
-
-    public Executor getTaskExecutor() {
-        return taskExecutor;
-    }
-
-    public int getWorkerThreadCount() {
-        return workerThreadCount;
-    }
-
-    public Executor getWorkerExecutor() {
-        return workerExecutor;
-    }
-
-    public List<String> getTaskNames() {
-        return taskNames;
-    }
-
-    public TaskService getTaskService() {
-        return taskService;
-    }
-
-    public WorkflowService getWorkflowService() {
-        return workflowService;
-    }
-
-    public void addLocalTask(Object instance) {
-        taskService.addTaskClass(instance);
+    public JsonNode toJsonNode(Object val) {
+        return objectMapper.valueToTree(val);
     }
 
     @SuppressWarnings("unchecked")
     public <T> T workflowTask(Class<T> type) {
-        return (T) Proxy.newProxyInstance(Thread.currentThread().getContextClassLoader(), new Class<?>[]{type}, new TaskHandler(this));
+        return (T) Proxy.newProxyInstance(Thread.currentThread().getContextClassLoader(), new Class<?>[]{type}, new TaskHandler());
     }
 
-    public void addWorkflow(IWorkflow<?, ?> workflow) {
-        workflowService.addWorkflow(workflow, null);
+    private WorkflowFactory workflowFactory;
+
+    public WorkflowFactory createWorkflowFactory(int maxThreads) {
+        if (workflowFactory == null) {
+            workflowFactory = new WorkflowFactory(this, maxThreads);
+            addTaskName(workerId);
+        }
+        return workflowFactory;
     }
 
-    public void addWorkflow(IWorkflow<?, ?> workflow, String name) {
-        workflowService.addWorkflow(workflow, name);
-    }
+    private TaskFactory taskFactory;
 
-    public Workflow startWorkflow(WorkflowCreate create, int timeout) throws Exception {
-        return workflowService.createWorkflow(create, timeout);
+    public TaskFactory createTaskFactory(int maxThreads) {
+        if (taskFactory == null) {
+            taskFactory = new TaskFactory(this, maxThreads);
+        }
+        return taskFactory;
     }
 
     public Workflow fetchWorkflow(String workflowId) throws Exception {
-        return workflowService.fetchWorkflow(workflowId);
+        String path = basePath + "/v1/workflows/" + workflowId;
+        return httpService.get(new URI(path), Workflow.class);
+    }
+
+    public Workflow createWorkflow(WorkflowCreate create, int timeout) throws Exception {
+        String path = basePath + "/v1/workflows/?timeout=" + timeout;
+        return httpService.post(new URI(path), create, Workflow.class);
+    }
+
+    public Workflow finishWorkflow(Workflow workflow) throws Exception {
+        String path = basePath + "/v1/workflows/" + workflow.getId();
+        return httpService.put(new URI(path), workflow, Workflow.class);
+    }
+
+    public Task createTask(Task taskCreate) throws Exception {
+        taskCreate.setWorkerId(workerId);
+        String path = basePath + "/v1/tasks/";
+        return httpService.post(new URI(path), taskCreate, Task.class);
+    }
+
+    public Task fetchTask(String taskId) throws Exception {
+        String path = basePath + "/v1/task/" + taskId;
+        return httpService.get(new URI(path), Task.class);
+    }
+
+    public Task finishTask(Task task) throws Exception {
+        String path = basePath + "/v1/tasks/" + task.getId();
+        return httpService.put(new URI(path), task, Task.class);
+    }
+
+    public Event fetchNextEvent() throws Exception {
+        SimpleUriBuilder b = new SimpleUriBuilder(basePath + "/v1/runtime/queues/events");
+        b.param("workerId", workerId);
+        b.param("timeout", "10");
+        taskNames.forEach((k) -> b.param("taskName", k));
+        return httpService.get(b.build(), Event.class);
+    }
+
+    public void addTaskName(String name) {
+        if (!taskNames.contains(name)) taskNames.add(name);
+        if (eventExecutor == null) {
+            eventExecutor = Executors.newSingleThreadExecutor();
+            eventExecutor.execute(this::run);
+        }
+    }
+
+    public void run() {
+        while (!Thread.interrupted()) {
+            try {
+                runStep();
+            } catch (ConnectException e) {
+                System.out.println("offline mode");
+                try {
+                    Thread.sleep(5000);
+                } catch (Exception ignore) {
+                }
+            } catch (Throwable th) {
+                th.printStackTrace();
+            }
+        }
+    }
+
+    private void runStep() throws Exception {
+        if (taskNames.isEmpty()) {
+            Thread.sleep(1000);
+            return;
+        }
+        Event event = fetchNextEvent();
+        if (event != null) {
+            execEvent(event);
+        }
+    }
+
+    private void execEvent(Event event) {
+        List<Consumer<Event>> l = handlerMap.get(event.type());
+        if (l != null) l.forEach(c -> c.accept(event));
     }
 }

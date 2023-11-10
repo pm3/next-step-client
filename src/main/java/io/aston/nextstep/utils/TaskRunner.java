@@ -1,43 +1,32 @@
 package io.aston.nextstep.utils;
 
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.TreeTraversingParser;
+import io.aston.nextstep.NextStepClient;
 import io.aston.nextstep.model.Task;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Type;
 
 public class TaskRunner {
 
     private final Method method;
     private final Object instance;
-    private final JavaType argType;
-    private final ObjectMapper objectMapper;
+    private final Type argType;
+    private final NextStepClient client;
 
-    public TaskRunner(Method method, Object instance, ObjectMapper objectMapper) {
+    public TaskRunner(Method method, Object instance, NextStepClient client) {
         this.method = method;
         this.instance = instance;
-        this.objectMapper = objectMapper;
+        this.client = client;
         this.argType = method.getParameterCount() == 1
-                ? objectMapper.constructType(method.getGenericParameterTypes()[0])
+                ? method.getGenericParameterTypes()[0]
                 : null;
     }
-
-    public Object invoke(Object[] args) throws Exception {
-        try {
-            return this.method.invoke(instance, args);
-        } catch (InvocationTargetException e) {
-            if (e.getTargetException() instanceof Exception ee)
-                throw ee;
-            throw e;
-        }
-    }
-
+    
     public Object exec(Task task) throws Exception {
         try {
             if (argType != null && task.getParams() != null) {
-                Object arg0 = objectMapper.readValue(new TreeTraversingParser(task.getParams()), argType);
+                Object arg0 = client.parseJsonNode(task.getParams(), argType);
                 return method.invoke(instance, arg0);
             } else {
                 return method.invoke(instance);

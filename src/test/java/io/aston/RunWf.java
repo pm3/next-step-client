@@ -21,7 +21,7 @@ public class RunWf {
             create.setParams(new HashMap<>());
             create.getParams().put("a", "a");
             create.getParams().put("b", 1);
-            Workflow w1 = client.startWorkflow(create, 15);
+            Workflow w1 = client.createWorkflow(create, 15);
             System.out.println(w1);
             String workflowId = w1.getId();
             while (w1.getState() != State.COMPLETED) {

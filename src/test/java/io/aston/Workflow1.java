@@ -17,6 +17,7 @@ public class Workflow1 implements IWorkflow<EchoData, EchoData> {
 
     @Override
     public EchoData exec(EchoData data) throws Exception {
+        System.out.println("start workflow " + data);
         Type mapType = this.getClass().getDeclaredField("tpl").getGenericType();
         System.out.println(data);
         EchoData echo1 = echoTask.echo(data);

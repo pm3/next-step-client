@@ -1,6 +1,7 @@
 package io.aston;
 
 import io.aston.nextstep.NextStepClient;
+import io.aston.nextstep.WorkflowFactory;
 
 public class RunTaskClient2 {
 
@@ -9,12 +10,11 @@ public class RunTaskClient2 {
             NextStepClient client = NextStepClient
                     .newBuilder("http://localhost:8080")
                     .setWorkerId("worker1")
-                    .setTaskThreadCount(10)
-                    .setWorkerThreadCount(20)
                     .build();
-            //client.addTaskClass(new EchoTaskImpl());
+
             IEchoTask echoTask = client.workflowTask(IEchoTask.class);
-            client.addWorkflow(new Workflow1(echoTask));
+            WorkflowFactory workflowFactory = client.createWorkflowFactory(10);
+            workflowFactory.addWorkflow(new Workflow1(echoTask));
 
         } catch (Exception e) {
             e.printStackTrace();

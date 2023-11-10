@@ -8,7 +8,6 @@ public class Task {
     private String id;
     private String workflowId;
     private String workerId;
-    private int ref;
     private String taskName;
     private String workflowName;
     private JsonNode params;
@@ -43,14 +42,6 @@ public class Task {
 
     public void setWorkerId(String workerId) {
         this.workerId = workerId;
-    }
-
-    public int getRef() {
-        return ref;
-    }
-
-    public void setRef(int ref) {
-        this.ref = ref;
     }
 
     public String getTaskName() {

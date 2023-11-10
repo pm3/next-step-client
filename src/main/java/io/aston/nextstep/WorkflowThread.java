@@ -1,4 +1,4 @@
-package io.aston.nextstep.service;
+package io.aston.nextstep;
 
 import io.aston.nextstep.model.Task;
 import io.aston.nextstep.model.Workflow;
@@ -7,14 +7,13 @@ import java.lang.reflect.Type;
 
 public class WorkflowThread {
     private final Workflow workflow;
-    private final WorkflowService workflowService;
-    int ref;
+    private final WorkflowFactory workflowFactory;
 
     private static final ThreadLocal<WorkflowThread> _local = new ThreadLocal<>();
 
-    public WorkflowThread(Workflow workflow, WorkflowService workflowService) {
+    public WorkflowThread(Workflow workflow, WorkflowFactory workflowFactory) {
         this.workflow = workflow;
-        this.workflowService = workflowService;
+        this.workflowFactory = workflowFactory;
         _local.set(this);
     }
 
@@ -28,12 +27,11 @@ public class WorkflowThread {
     private <T> T _callTask(String name, Object params, Type responseType) throws Exception {
         Task taskCreate = new Task();
         taskCreate.setWorkflowId(workflow.getId());
-        taskCreate.setRef(++ref);
         taskCreate.setTaskName(name);
         taskCreate.setRunningTimeout(30);
         taskCreate.setMaxRetryCount(3);
         taskCreate.setRetryWait(45);
-        return (T) workflowService.callTask(taskCreate, params, responseType).get();
+        return (T) workflowFactory.callTask(taskCreate, params, responseType).get();
     }
 
     void finish() {
