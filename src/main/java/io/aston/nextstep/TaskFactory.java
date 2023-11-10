@@ -19,8 +19,8 @@ public class TaskFactory {
 
     private final NextStepClient client;
     private final int maxThreads;
-    private final Executor executor;
     private final AtomicInteger aktThreads = new AtomicInteger(0);
+    private final Executor executor;
     private final List<String> taskNames = new ArrayList<>();
     private final Map<String, TaskRunner> taskRunnerMap = new ConcurrentHashMap<>();
 

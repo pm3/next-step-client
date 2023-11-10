@@ -27,10 +27,8 @@ public class NextStepClient {
     private final ObjectMapper objectMapper;
     private Executor eventExecutor;
 
-    public static NextStepBuilder newBuilder(String basePath) {
-        return new NextStepBuilder(basePath);
-    }
-
+    private WorkflowFactory workflowFactory;
+    private TaskFactory taskFactory;
     private final Map<EventType, List<Consumer<Event>>> handlerMap = new ConcurrentHashMap<>();
 
     public NextStepClient(String basePath,
@@ -41,6 +39,10 @@ public class NextStepClient {
         this.workerId = workerId;
         this.httpService = new HttpService(httpClient, objectMapper);
         this.objectMapper = objectMapper;
+    }
+
+    public static NextStepBuilder newBuilder(String basePath) {
+        return new NextStepBuilder(basePath);
     }
 
     public void addHandler(EventType eventType, Consumer<Event> handler) {
@@ -73,16 +75,12 @@ public class NextStepClient {
         return (T) Proxy.newProxyInstance(Thread.currentThread().getContextClassLoader(), new Class<?>[]{type}, new TaskHandler());
     }
 
-    private WorkflowFactory workflowFactory;
-
     public WorkflowFactory createWorkflowFactory(int maxThreads) {
         if (workflowFactory == null) {
             workflowFactory = new WorkflowFactory(this, maxThreads);
         }
         return workflowFactory;
     }
-
-    private TaskFactory taskFactory;
 
     public TaskFactory createTaskFactory(int maxThreads) {
         if (taskFactory == null) {
@@ -157,12 +155,10 @@ public class NextStepClient {
     private void runStep() throws Exception {
         Event event = fetchNextEvent();
         if (event != null) {
-            execEvent(event);
+            List<Consumer<Event>> l = handlerMap.get(event.type());
+            if (l != null) {
+                l.forEach(c -> c.accept(event));
+            }
         }
-    }
-
-    private void execEvent(Event event) {
-        List<Consumer<Event>> l = handlerMap.get(event.type());
-        if (l != null) l.forEach(c -> c.accept(event));
     }
 }

@@ -16,9 +16,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class WorkflowFactory {
 
     private final NextStepClient client;
-    private final Executor executor;
     private final int maxThreads;
     private final AtomicInteger aktThreads = new AtomicInteger(0);
+    private final Executor executor;
     private final List<String> workflowNames = new ArrayList<>();
     private final Map<String, IWorkflow<?, ?>> workflowRunnerMap = new ConcurrentHashMap<>();
     private final Map<String, CompletableFuture<Task>> waitingTasks = new ConcurrentHashMap<>();
@@ -122,8 +122,14 @@ public class WorkflowFactory {
         }
     }
 
-    public <T> CompletableFuture<T> callTask(Task taskCreate, Object params, Type responseType) {
+    public <T> CompletableFuture<T> callTask(Workflow workflow, String taskName, Object params, Type responseType) {
         CompletableFuture<Task> future = new CompletableFuture<>();
+        Task taskCreate = new Task();
+        taskCreate.setWorkflowId(workflow.getId());
+        taskCreate.setTaskName(taskName);
+        taskCreate.setRunningTimeout(30);
+        taskCreate.setMaxRetryCount(3);
+        taskCreate.setRetryWait(45);
         taskCreate.setParams(client.toJsonNode(params));
         taskCreate.setWorkerId(client.getWorkerId());
         try {
@@ -158,5 +164,4 @@ public class WorkflowFactory {
             new Thread(r).start();
         }
     }
-
 }
