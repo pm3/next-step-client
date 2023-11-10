@@ -7,6 +7,8 @@ import io.aston.nextstep.model.Task;
 import io.aston.nextstep.utils.TaskRunner;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -19,6 +21,7 @@ public class TaskFactory {
     private final int maxThreads;
     private final Executor executor;
     private final AtomicInteger aktThreads = new AtomicInteger(0);
+    private final List<String> taskNames = new ArrayList<>();
     private final Map<String, TaskRunner> taskRunnerMap = new ConcurrentHashMap<>();
 
     public TaskFactory(NextStepClient client, int maxThreads) {
@@ -26,6 +29,10 @@ public class TaskFactory {
         this.maxThreads = maxThreads;
         this.executor = Executors.newFixedThreadPool(maxThreads);
         this.client.addHandler(EventType.NEW_TASK, this::handleNewTask);
+    }
+
+    public List<String> getTaskNames() {
+        return taskNames;
     }
 
     public boolean hasFreeThreads() {
@@ -39,7 +46,7 @@ public class TaskFactory {
                 if (method.getParameterCount() <= 1) {
                     String name = !task.name().isEmpty() ? task.name() : instance.getClass().getSimpleName() + "." + method.getName();
                     taskRunnerMap.put(name, new TaskRunner(method, instance, client));
-                    client.addTaskName(name);
+                    taskNames.add(name);
                 } else {
                     System.out.println("error NextStepTask method has more params " + method);
                 }

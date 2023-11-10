@@ -4,6 +4,8 @@ import io.aston.nextstep.model.*;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -17,6 +19,7 @@ public class WorkflowFactory {
     private final Executor executor;
     private final int maxThreads;
     private final AtomicInteger aktThreads = new AtomicInteger(0);
+    private final List<String> workflowNames = new ArrayList<>();
     private final Map<String, IWorkflow<?, ?>> workflowRunnerMap = new ConcurrentHashMap<>();
     private final Map<String, CompletableFuture<Task>> waitingTasks = new ConcurrentHashMap<>();
 
@@ -32,6 +35,10 @@ public class WorkflowFactory {
         return aktThreads.get() < maxThreads;
     }
 
+    public List<String> getWorkflowNames() {
+        return workflowNames;
+    }
+
     public void addWorkflow(IWorkflow<?, ?> workflow) {
         addWorkflow(workflow, workflow.getClass().getSimpleName());
     }
@@ -39,7 +46,7 @@ public class WorkflowFactory {
     public void addWorkflow(IWorkflow<?, ?> workflow, String name) {
         if (name == null) name = workflow.getClass().getSimpleName();
         workflowRunnerMap.put(name, workflow);
-        client.addWorkflowName("wf_" + name);
+        workflowNames.add("wf_" + name);
     }
 
     @SuppressWarnings("unchecked")
