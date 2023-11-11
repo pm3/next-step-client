@@ -26,7 +26,6 @@ public class NextStepClient {
     private final HttpService httpService;
     private final ObjectMapper objectMapper;
     private Executor eventExecutor;
-
     private WorkflowFactory workflowFactory;
     private TaskFactory taskFactory;
     private final Map<EventType, List<Consumer<Event>>> handlerMap = new ConcurrentHashMap<>();
@@ -160,5 +159,13 @@ public class NextStepClient {
                 l.forEach(c -> c.accept(event));
             }
         }
+    }
+
+    public void taskCompleted(String taskId, Object data) throws Exception {
+        Task task = new Task();
+        task.setId(taskId);
+        task.setState(State.COMPLETED);
+        task.setOutput(toJsonNode(data));
+        finishTask(task);
     }
 }

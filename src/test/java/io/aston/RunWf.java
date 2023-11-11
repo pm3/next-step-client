@@ -22,12 +22,12 @@ public class RunWf {
             create.getParams().put("a", "a");
             create.getParams().put("b", 1);
             Workflow w1 = client.createWorkflow(create, 15);
-            System.out.println(w1);
+            System.out.println(client.toJsonNode(w1));
             String workflowId = w1.getId();
             while (w1.getState() != State.COMPLETED) {
                 Thread.sleep(3000);
                 w1 = client.fetchWorkflow(workflowId);
-                System.out.println(w1);
+                System.out.println(client.toJsonNode(w1));
             }
 
         } catch (Exception e) {

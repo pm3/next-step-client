@@ -61,17 +61,14 @@ public class HttpService {
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         long t2 = System.currentTimeMillis();
         if (response.statusCode() == 204) {
-            //System.out.println("204 " + request.uri() + " " + new Date());
             return null;
         }
         if (response.statusCode() != 200) {
-            //System.out.println("error: " + response.statusCode());
-            //System.out.println(response.body());
+            System.out.println("error: " + response.statusCode());
+            System.out.println(response.body());
             throw new HttpException(response.statusCode(), response.body());
         }
         System.out.println(response.statusCode() + " " + request.uri() + " " + (t2 - t1) + " - " + new Date());
-        //System.out.println("---out " + request.uri() + " " + new Date());
-        //System.out.println("---out " + response.body());
         return objectMapper.readValue(response.body(), type);
     }
 }

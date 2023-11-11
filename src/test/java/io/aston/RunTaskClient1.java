@@ -12,7 +12,7 @@ public class RunTaskClient1 {
                     .setWorkerId("worker1")
                     .build();
             TaskFactory taskFactory = client.createTaskFactory(10);
-            taskFactory.addLocalTasks(new EchoTaskImpl());
+            taskFactory.addLocalTasks(new EchoTaskImpl(client));
 
         } catch (Exception e) {
             e.printStackTrace();

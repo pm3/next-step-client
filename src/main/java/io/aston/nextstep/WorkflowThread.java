@@ -3,6 +3,7 @@ package io.aston.nextstep;
 import io.aston.nextstep.model.Workflow;
 
 import java.lang.reflect.Type;
+import java.util.concurrent.CompletableFuture;
 
 public class WorkflowThread {
     private final Workflow workflow;
@@ -18,9 +19,13 @@ public class WorkflowThread {
 
     @SuppressWarnings("unchecked")
     public static <T> T callTask(String name, Object params, Type responseType) throws Exception {
+        return (T) callTaskAsync(name, params, responseType).get();
+    }
+
+    public static <T> CompletableFuture<T> callTaskAsync(String name, Object params, Type responseType) throws Exception {
         WorkflowThread wt = _local.get();
         if (wt == null) throw new RuntimeException("call only inside workflow");
-        return (T) wt.workflowFactory.callTask(wt.workflow, name, params, responseType).get();
+        return wt.workflowFactory.callTask(wt.workflow, TaskBuilder.task(name).params(params).returnType(responseType));
     }
 
     public static Workflow workflow() {

@@ -4,6 +4,8 @@ import io.aston.nextstep.model.Event;
 import io.aston.nextstep.model.EventType;
 import io.aston.nextstep.model.State;
 import io.aston.nextstep.model.Task;
+import io.aston.nextstep.service.AsyncException;
+import io.aston.nextstep.service.RetryException;
 import io.aston.nextstep.utils.TaskRunner;
 
 import java.lang.reflect.Method;
@@ -58,6 +60,7 @@ public class TaskFactory {
         TaskRunner runner = taskRunnerMap.get(event.task().getTaskName());
         if (runner != null) {
             executor.execute(() -> {
+                TaskThread taskThread = new TaskThread(event.task());
                 try {
                     aktThreads.incrementAndGet();
                     execTask(event.task(), runner);
@@ -65,8 +68,8 @@ public class TaskFactory {
                     e.printStackTrace();
                 } finally {
                     aktThreads.decrementAndGet();
+                    taskThread.finish();
                 }
-
             });
         }
     }
@@ -81,6 +84,13 @@ public class TaskFactory {
             Object value = runner.exec(task);
             taskOutput.setState(State.COMPLETED);
             taskOutput.setOutput(client.toJsonNode(value));
+        } catch (RetryException e) {
+            taskOutput.setState(State.RETRY);
+            taskOutput.setOutput(null);
+        } catch (AsyncException e) {
+            taskOutput.setState(State.AWAIT);
+            taskOutput.setOutput(null);
+            return;
         } catch (Exception e) {
             taskOutput.setState(State.FAILED);
             Map<String, String> err = Map.of(
@@ -89,8 +99,6 @@ public class TaskFactory {
             );
             taskOutput.setOutput(client.toJsonNode(err));
         }
-        //System.out.println("++taskOutput " + taskOutput.getId() + " " + new Date());
         client.finishTask(taskOutput);
     }
-
 }

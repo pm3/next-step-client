@@ -1,5 +1,8 @@
 package io.aston.nextstep;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.aston.nextstep.model.*;
 
 import java.lang.reflect.Method;
@@ -78,20 +81,10 @@ public class WorkflowFactory {
             Object output = exec.exec(params);
             workflow.setState(State.COMPLETED);
             workflow.setOutput(client.toJsonNode(output));
-        } catch (RuntimeException e) {
-            e.printStackTrace();
-            System.out.println("error running workflow " + workflow.getId() + " " + e.getMessage());
-            workflow.setState(State.FATAL_ERROR);
-            workflow.setOutput(client.toJsonNode(Map.of(
-                    "type", e.getClass().getSimpleName(),
-                    "message", e.getMessage())));
         } catch (Exception e) {
-            e.printStackTrace();
             System.out.println("error running workflow " + workflow.getId() + " " + e.getMessage());
             workflow.setState(State.FAILED);
-            workflow.setOutput(client.toJsonNode(Map.of(
-                    "type", e.getClass().getSimpleName(),
-                    "message", e.getMessage())));
+            workflow.setOutput(error(e));
         } finally {
             workflowThread.finish();
             try {
@@ -101,6 +94,13 @@ public class WorkflowFactory {
             }
         }
 
+    }
+
+    private JsonNode error(Exception e) {
+        ObjectNode root = JsonNodeFactory.instance.objectNode();
+        root.put("type", e.getClass().getSimpleName());
+        root.put("message", e.getMessage() != null ? e.getMessage() : "null");
+        return root;
     }
 
     private Type paramsType(IWorkflow<?, ?> exec) {
@@ -122,15 +122,15 @@ public class WorkflowFactory {
         }
     }
 
-    public <T> CompletableFuture<T> callTask(Workflow workflow, String taskName, Object params, Type responseType) {
+    public <T> CompletableFuture<T> callTask(Workflow workflow, TaskBuilder builder) {
         CompletableFuture<Task> future = new CompletableFuture<>();
         Task taskCreate = new Task();
         taskCreate.setWorkflowId(workflow.getId());
-        taskCreate.setTaskName(taskName);
-        taskCreate.setRunningTimeout(30);
-        taskCreate.setMaxRetryCount(3);
-        taskCreate.setRetryWait(45);
-        taskCreate.setParams(client.toJsonNode(params));
+        taskCreate.setTaskName(builder.getName());
+        taskCreate.setRunningTimeout(builder.getRunningTimeout());
+        taskCreate.setMaxRetryCount(builder.getMaxRetryCount());
+        taskCreate.setRetryWait(builder.getRetryWait());
+        taskCreate.setParams(client.toJsonNode(builder.getParams()));
         taskCreate.setWorkerId(client.getWorkerId());
         try {
             Task runningTask = client.createTask(taskCreate);
@@ -142,7 +142,7 @@ public class WorkflowFactory {
             if (t.getState().equals(State.COMPLETED)) {
                 if (t.getOutput() != null) {
                     try {
-                        return client.parseJsonNode(t.getOutput(), responseType);
+                        return client.parseJsonNode(t.getOutput(), builder.getReturnType());
                     } catch (Exception e) {
                         throw new RuntimeException("parse output error " + t.getOutput());
                     }
@@ -151,8 +151,6 @@ public class WorkflowFactory {
                 }
             } else if (t.getState() == State.FAILED) {
                 throw new RuntimeException("failed response " + t.getOutput());
-            } else if (t.getState() == State.FATAL_ERROR) {
-                throw new RuntimeException("fatal error");
             }
             throw new RuntimeException("call task error " + t);
         });
